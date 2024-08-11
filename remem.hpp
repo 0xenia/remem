@@ -133,7 +133,7 @@ namespace remem
 	template <typename T>
 	T ReadMemory(const auto& _address, const std::vector<DWORD>& _offsets)
 	{
-		auto _current = (uintptr_t)(_address);
+		auto _current = (uintptr_t)_address;
 #if _LOGS
 		std::cout << "Read Memory Address : " << std::hex << _current << std::endl;
 #endif
@@ -151,13 +151,16 @@ namespace remem
 			}
 
 			// for some reason it happened like this
-			if (std::next(iter) == _offsets.end() && std::is_same_v<T, std::string>)
+			if (std::next(iter) == _offsets.end())
 			{
-				_current = (_current + _offset);
+				if constexpr (std::is_same_v<T, std::string>)
+				{
+					_current = (_current + _offset);
 #if _LOGS
-				std::cout << "Offset: " << std::hex << _offset << " | Offset Read Memory: " << std::hex << _current << std::endl;
+					std::cout << "Offset: " << std::hex << _offset << " | Offset Read Memory: " << std::hex << _current << std::endl;
 #endif
-				return std::string(reinterpret_cast<const char*>(_current));
+					return std::string(reinterpret_cast<const char*>(_current));
+				}
 			}
 
 			_current = *reinterpret_cast<uintptr_t*>(_current + _offset);
@@ -166,12 +169,16 @@ namespace remem
 #endif
 		}
 
-		if (!IsValidPtr(reinterpret_cast<void*>(_current)))
+		if constexpr (std::is_pointer_v<T>)
 		{
+			if (!IsValidPtr(reinterpret_cast<void*>(_current)))
+			{
 #if _LOGS
-			std::cerr << "Error: Invalid final memory address: " << std::hex << _current << std::endl;
+				std::cerr << "Error: Invalid final memory address: " << std::hex << _current << std::endl;
 #endif
-			return T{};
+				return T{};
+			}
+			return reinterpret_cast<T>(_current);
 		}
 
 		if constexpr (std::is_integral_v<T>)
@@ -185,7 +192,7 @@ namespace remem
 	template <typename T>
 	void WriteMemory(const auto& _address, const std::vector<DWORD>& _offsets, T _value)
 	{
-		auto _current = (uintptr_t)(_address);
+		auto _current = (uintptr_t)_address;
 
 		for (auto iter = _offsets.begin(); iter != _offsets.end(); ++iter)
 		{
