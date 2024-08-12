@@ -60,6 +60,41 @@ if (remem::IsValidPtr(ptr)) {
 }
 ```
 
+### 5. Function calling
+
+The CallFunction template allows you to call functions with different calling conventions in C++. Here’s how to use it:
+
+#### 1. Determine the Calling Convention
+
+Decide which calling convention your function uses (`thiscall`, `fastcall`, `stdcall`, or `cdecl`).
+
+#### 2. Define the Function Signature
+
+Specify the return type and parameters of the function you want to call.
+
+#### 3. Call the Function
+
+**For thiscall and fastcall conventions, you need to pass a this pointer as the first argument.**
+
+**For stdcall and cdecl conventions, you do not need to pass a this pointer.**
+
+#### Example Usage
+
+**To call a thiscall or fastcall function, provide the address of the function, a this pointer, and the arguments:**
+
+```cpp
+auto result = CallFunction<CallingConvention::thiscall_, ReturnType>(funcAddress, thisPointer, arg1, arg2);
+```
+
+**To call a stdcall or cdecl function, provide the address of the function and the arguments:**
+
+```cpp
+auto result = CallFunction<CallingConvention::cdecl_, ReturnType>(funcAddress, arg1, arg2);
+```
+
+In both cases, replace `ReturnType` with the return type of the function and `funcAddress` with the address of the function you are calling.
+
+
 ## Configuration
 
 
