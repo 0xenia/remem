@@ -1,6 +1,6 @@
 # remem - Memory Manipulation Library
 
-`remem` is a C++20 header-only library designed for safely reading and writing memory in Windows applications. It includes features like exception handling, pointer validation, and memory manipulation utilities, making it a useful tool for low-level memory operations.
+`remem` is a C++20/C++17 header-only library designed for safely reading and writing memory in Windows applications. It includes features like exception handling, pointer validation, and memory manipulation utilities, making it a useful tool for low-level memory operations.
 
 ## Features
 
