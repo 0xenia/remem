@@ -8,6 +8,7 @@
 - **Pointer Validation**: Ensure that pointers are valid before accessing memory, preventing crashes or undefined behavior.
 - **Exception Handling**: (Optional) Safeguard against exceptions during pointer dereferencing by using a vectored exception handler.
 - **Logging**: (Optional) Log memory addresses and offsets during read/write operations for debugging purposes.
+- **Function Calling**: Support for different calling conventions (cdecl, stdcall, thiscall, fastcall) for calling functions at specified addresses with or without `this` pointers.
 
 ## Installation
 

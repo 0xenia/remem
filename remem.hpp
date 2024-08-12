@@ -41,8 +41,17 @@ UCHAR __checker[4] = { 0x48, 0x8B, 0x01, 0xC3 };
 
 #endif
 
+enum class CallingConvention
+{
+	cdecl_,
+	stdcall_,
+	thiscall_,
+	fastcall_
+};
+
 namespace remem
 {
+#pragma region EXCEPTION_HANDLING
 #if _EXCEPTION_HANDLING
 
 	typedef PVOID(*tPointerChecker)(PVOID);
@@ -117,7 +126,8 @@ namespace remem
 		AddVectoredExceptionHandler(1, EH);
 	}
 #endif
-
+#pragma endregion
+#pragma region MODULE_BASE
 	template <typename T>
 	T GetModuleBaseAddress()
 	{
@@ -129,7 +139,8 @@ namespace remem
 	{
 		return reinterpret_cast<T>(GetModuleHandleA(_moduleName));
 	}
-
+#pragma endregion
+#pragma region READ_MEMORY
 	template <typename T>
 	T ReadMemory(const auto& _address, const std::vector<DWORD>& _offsets)
 	{
@@ -188,7 +199,8 @@ namespace remem
 
 		return T{};
 	}
-
+#pragma endregion
+#pragma region WRITE_MEMORY
 	template <typename T>
 	void WriteMemory(const auto& _address, const std::vector<DWORD>& _offsets, T _value)
 	{
@@ -221,6 +233,51 @@ namespace remem
 			_current = *reinterpret_cast<uintptr_t*>(_current + _offset);
 		}
 	}
+#pragma endregion
+#pragma region FUNCTION_CALL
+	template <CallingConvention Convention, typename ReturnType, typename... Args>
+	struct FunctionType;
+
+	template <typename ReturnType, typename... Args>
+	struct FunctionType<CallingConvention::thiscall_, ReturnType, Args...>
+	{
+		using type = ReturnType(__thiscall*)(void*, Args...);
+	};
+
+	template <typename ReturnType, typename... Args>
+	struct FunctionType<CallingConvention::fastcall_, ReturnType, Args...>
+	{
+		using type = ReturnType(__fastcall*)(void*, Args...);
+	};
+
+	template <typename ReturnType, typename... Args>
+	struct FunctionType<CallingConvention::stdcall_,ReturnType, Args...>
+	{
+		using type = ReturnType(__stdcall*)(Args...);
+	};
+
+	template <typename ReturnType, typename... Args>
+	struct FunctionType<CallingConvention::cdecl_, ReturnType, Args...>
+	{
+		using type = ReturnType(__cdecl*)(Args...);
+	};
+
+	template <CallingConvention Convention, typename ReturnType, typename... Args>
+	auto CallFunction(const auto& _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention == CallingConvention::thiscall_ || Convention == CallingConvention::fastcall_), ReturnType>
+	{
+		using fn_t = typename FunctionType<Convention, ReturnType, Args...>::type;
+		auto fn = reinterpret_cast<fn_t>(_call_address);
+		return fn(_this_pointer, _args...);
+	}
+
+	template <CallingConvention Convention, typename ReturnType, typename... Args>
+	auto CallFunction(const auto& _call_address, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
+	{
+		using fn_t = typename FunctionType<Convention, ReturnType, Args...>::type;
+		auto fn = reinterpret_cast<fn_t>(_call_address);
+		return fn(_args...);
+	}
+#pragma endregion
 };
 
 #endif
