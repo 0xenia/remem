@@ -6,6 +6,8 @@
 
 - **Memory Reading and Writing**: Easily read and write memory at specified addresses with support for multiple offsets.
 - **Pointer Validation**: Ensure that pointers are valid before accessing memory, preventing crashes or undefined behavior.
+- **Pattern Scanning**: Find byte patterns in memory with support for both IDA-style signatures and code style signatures.
+- **Function Calling**: Call functions with different calling conventions, including support for member functions (with `this` pointer).
 - **Exception Handling**: (Optional) Safeguard against exceptions during pointer dereferencing by using a vectored exception handler.
 - **Logging**: (Optional) Log memory addresses and offsets during read/write operations for debugging purposes.
 
@@ -58,6 +60,70 @@ if (remem::IsValidPtr(ptr)) {
     // Safe to use the pointer
 }
 ```
+
+### 5. Function calling
+
+The CallFunction template allows you to call functions with different calling conventions in C++. Here’s how to use it:
+
+#### 1. Determine the Calling Convention
+
+Decide which calling convention your function uses (`thiscall`, `fastcall`, `stdcall`, or `cdecl`).
+
+#### 2. Define the Function Signature
+
+Specify the return type and parameters of the function you want to call.
+
+#### 3. Call the Function
+
+**For thiscall and fastcall conventions, you need to pass a this pointer as the first argument.**
+
+**For stdcall and cdecl conventions, you do not need to pass a this pointer.**
+
+#### Example Usage
+
+**To call a thiscall or fastcall function, provide the address of the function, a this pointer, and the arguments:**
+
+```cpp
+auto result = CallFunction<CallingConvention::thiscall_, ReturnType>(funcAddress, thisPointer, arg1, arg2);
+```
+
+**To call a stdcall or cdecl function, provide the address of the function and the arguments:**
+
+```cpp
+auto result = CallFunction<CallingConvention::cdecl_, ReturnType>(funcAddress, arg1, arg2);
+```
+
+In both cases, replace `ReturnType` with the return type of the function and `funcAddress` with the address of the function you are calling.
+
+### 6. Pattern Scanning
+
+The pattern class allows for easy memory pattern scanning with support for both IDA-style signatures and code-style signatures.
+
+`pattern` Class
+
+**Constructor**
+
+**```pattern(std::string _pattern, const char* _module_name = nullptr)```**: Constructs a pattern object by scanning for the specified pattern in the given module (or the current module if nullptr).
+
+**Member Functions**
+
+**```pattern add(uint32_t _value, bool _deref = false)```**: Adds an offset to the current pointer. If _deref is true, it will also dereference the pointer before adding the offset.
+
+**```pattern sub(uint32_t _value)```**: Subtracts an offset from the current pointer.
+
+**```pattern inst(uint32_t _offset)```**: Adds an offset to the current pointer, with the offset value taken from a pointer located at _offset from the current pointer.
+
+**```GetPointer()```**: Returns the current pointer value.
+
+#### Example Usage
+
+For example we are pattern scanning ```mov ecx, [0xDEADBEEF]```
+
+```cpp
+auto PatternTest = remem::pattern("8B 0D ?? ?? ?? ??").add(2, true);
+```
+
+The add member will deref the pointer if we call ```auto insideofmovecx = PatternTest.GetPointer()``` it will return 0xDEADBEEF.
 
 ## Configuration
 
