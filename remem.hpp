@@ -142,9 +142,17 @@ namespace remem
 #pragma endregion
 #pragma region READ_MEMORY
 	template <typename T>
+#if _HAS_CXX20
 	T ReadMemory(const auto& _address, const std::vector<DWORD>& _offsets)
+#else
+	T ReadMemory(uintptr_t _address, const std::vector<DWORD>& _offsets)
+#endif
 	{
+#if _HAS_CXX20
 		auto _current = (uintptr_t)_address;
+#else
+		auto _current = _address;
+#endif
 #if _LOGS
 		std::cout << "Read Memory Address : " << std::hex << _current << std::endl;
 #endif
@@ -202,9 +210,17 @@ namespace remem
 #pragma endregion
 #pragma region WRITE_MEMORY
 	template <typename T>
+#if _HAS_CXX20
 	void WriteMemory(const auto& _address, const std::vector<DWORD>& _offsets, T _value)
+#else
+	void WriteMemory(uintptr_t _address, const std::vector<DWORD>& _offsets, T _value)
+#endif
 	{
+#if _HAS_CXX20
 		auto _current = (uintptr_t)_address;
+#else
+		auto _current = _address;
+#endif
 
 		for (auto iter = _offsets.begin(); iter != _offsets.end(); ++iter)
 		{
@@ -263,7 +279,11 @@ namespace remem
 	};
 
 	template <CallingConvention Convention, typename ReturnType, typename... Args>
+#if _HAS_CXX20
 	auto CallFunction(const auto& _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention == CallingConvention::thiscall_ || Convention == CallingConvention::fastcall_), ReturnType>
+#else
+	auto CallFunction(uintptr_t _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention == CallingConvention::thiscall_ || Convention == CallingConvention::fastcall_), ReturnType>
+#endif
 	{
 		using fn_t = typename FunctionType<Convention, ReturnType, Args...>::type;
 		auto fn = reinterpret_cast<fn_t>(_call_address);
@@ -271,7 +291,11 @@ namespace remem
 	}
 
 	template <CallingConvention Convention, typename ReturnType, typename... Args>
-	auto CallFunction(const auto& _call_address, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
+#if _HAS_CXX20
+	auto CallFunction(const auto& _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
+#else
+	auto CallFunction(uintptr_t _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
+#endif
 	{
 		using fn_t = typename FunctionType<Convention, ReturnType, Args...>::type;
 		auto fn = reinterpret_cast<fn_t>(_call_address);
