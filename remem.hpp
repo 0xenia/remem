@@ -311,6 +311,17 @@ namespace remem
 	}
 #pragma endregion
 #pragma region PATTERN_SCAN
+
+	auto GetPageSize(const void* _addr)
+	{
+		MEMORY_BASIC_INFORMATION mbi = { 0 };
+		if (VirtualQuery(_addr, &mbi, (sizeof(mbi))))
+		{
+			return mbi.RegionSize;
+		}
+		return SIZE_T{};
+	}
+
 	std::uint8_t* find(std::string _pattern, const char* _module_name)
 	{
 		HMODULE module = (_module_name) ? GetModuleHandleA(_module_name) : GetModuleHandleA(NULL);
@@ -373,7 +384,12 @@ namespace remem
 		for (auto i = 0ul; i < size_of_image - pattern_size; ++i)
 		{
 			auto found = true;
-
+			if (IsBadReadPtr(&scan_bytes[i], sizeof(void*)))
+			{
+				auto page_size = GetPageSize(&scan_bytes[i]);
+				i += page_size;
+				continue;
+			}
 			for (auto j = 0ul; j < pattern_size; ++j)
 			{
 				if (scan_bytes[i + j] == pattern_data[j] || pattern_data[j] == -1)
@@ -424,14 +440,19 @@ namespace remem
 		}
 
 #ifdef _X86_
-		pattern DerefPointer()
+		uint32_t ResolvePtr()
 		{
+			return *reinterpret_cast<uint32_t*>(this->_pointer);
 		}
 		uint32_t GetPointer()
 		{
 			return this->_pointer;
 		}
 #else
+		uint64_t ResolvePtr()
+		{
+			return *reinterpret_cast<uint64_t*>(this->_pointer);
+		}
 		uint64_t GetPointer()
 		{
 			return this->_pointer;
