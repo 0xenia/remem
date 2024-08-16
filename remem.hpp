@@ -12,7 +12,7 @@
 
 #define _EXCEPTION_HANDLING 1
 
-#define _LOGS 1
+#define _LOGS 0
 
 #if _EXCEPTION_HANDLING
 
@@ -292,9 +292,9 @@ namespace remem
 
 	template <CallingConvention Convention, typename ReturnType, typename... Args>
 #if _HAS_CXX20
-	auto CallFunction(const auto& _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
+	auto CallFunction(const auto& _call_address, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
 #else
-	auto CallFunction(uintptr_t _call_address, void* _this_pointer, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
+	auto CallFunction(uintptr_t _call_address, Args... _args) -> std::enable_if_t<(Convention != CallingConvention::thiscall_ && Convention != CallingConvention::fastcall_), ReturnType>
 #endif
 	{
 		using fn_t = typename FunctionType<Convention, ReturnType, Args...>::type;
