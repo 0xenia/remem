@@ -9,10 +9,11 @@
 #include <vector>
 #include <iostream>
 #include <regex>
+#include <map>
 
 #define _EXCEPTION_HANDLING 1
 
-#define _LOGS 0
+#define _LOGS 1
 
 #if _EXCEPTION_HANDLING
 
@@ -312,14 +313,38 @@ namespace remem
 #pragma endregion
 #pragma region PATTERN_SCAN
 
-	auto GetPageSize(const void* _addr)
+	std::map<uintptr_t, SIZE_T> _cache;
+
+	uintptr_t GetModuleSize(HMODULE module)
 	{
-		MEMORY_BASIC_INFORMATION mbi = { 0 };
-		if (VirtualQuery(_addr, &mbi, (sizeof(mbi))))
+		const auto dos_header = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
+		const auto nt_headers = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<std::uint8_t*>(module) + dos_header->e_lfanew);
+		return nt_headers->OptionalHeader.SizeOfImage;
+	}
+
+	bool CacheMemory(const char* _module)
+	{
+		MEMORY_BASIC_INFORMATION mbi;
+		HMODULE module = (_module) ? GetModuleHandleA(_module) : GetModuleHandleA(NULL);
+		uintptr_t _addr = reinterpret_cast<uintptr_t>(module);
+		uintptr_t _end = _addr + GetModuleSize(module);
+
+		while (_addr < _end)
 		{
-			return mbi.RegionSize;
+			if (VirtualQuery(reinterpret_cast<LPCVOID>(_addr), &mbi, sizeof(mbi)))
+			{
+				if (mbi.State == MEM_COMMIT && !(mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)))
+				{
+					_cache[_addr] = mbi.RegionSize;
+				}
+				_addr += mbi.RegionSize;
+			}
+			else
+			{
+				_addr += mbi.RegionSize;
+			}
 		}
-		return SIZE_T{};
+		return true;
 	}
 
 	std::uint8_t* find(std::string _pattern, const char* _module_name)
@@ -371,35 +396,31 @@ namespace remem
 				return bytes;
 			};
 
-		const auto dos_header = reinterpret_cast<PIMAGE_DOS_HEADER>(module);
-		const auto nt_headers = reinterpret_cast<PIMAGE_NT_HEADERS>(reinterpret_cast<std::uint8_t*>(module) + dos_header->e_lfanew);
-
-		const auto size_of_image = nt_headers->OptionalHeader.SizeOfImage;
 		const auto pattern_bytes = pattern_to_byte(_pattern.c_str());
-		const auto scan_bytes = reinterpret_cast<std::uint8_t*>(module);
 
 		const auto pattern_size = pattern_bytes.size();
 		const auto pattern_data = pattern_bytes.data();
 
-		for (auto i = 0ul; i < size_of_image - pattern_size; ++i)
+		for (const auto& [start_addr, region_size] : _cache)
 		{
-			auto found = true;
-			if (IsBadReadPtr(&scan_bytes[i], sizeof(void*)))
+			for (auto i = 0ul; i < region_size - pattern_size; ++i)
 			{
-				auto page_size = GetPageSize(&scan_bytes[i]);
-				i += page_size;
-				continue;
-			}
-			for (auto j = 0ul; j < pattern_size; ++j)
-			{
-				if (scan_bytes[i + j] == pattern_data[j] || pattern_data[j] == -1)
+				auto found = true;
+				auto address = reinterpret_cast<std::uint8_t*>(start_addr) + i;
+
+				for (auto j = 0ul; j < pattern_size; ++j)
+				{
+					if (address[j] == pattern_data[j] || pattern_data[j] == -1)
+						continue;
+					found = false;
+					break;
+				}
+
+				if (!found)
 					continue;
-				found = false;
-				break;
+
+				return address;
 			}
-			if (!found)
-				continue;
-			return &scan_bytes[i];
 		}
 
 		return nullptr;
@@ -409,30 +430,48 @@ namespace remem
 	public:
 		pattern(std::string _pattern, const char* _module_name = nullptr)
 		{
+			if (!this->_cached)
+			{
+				if (CacheMemory(_module_name))
+				{
+					this->_cached = true;
 #ifdef _X86_
-			this->_pointer = (uint32_t)find(_pattern, _module_name);
+					this->_pointer = (uint32_t)find(_pattern, _module_name);
 #else
-			this->pointer = (uint64_t)find(_pattern, _module_name);
+					this->_pointer = (uint64_t)find(_pattern, _module_name);
 #endif
+				}
+			}
+			else
+			{
+#ifdef _X86_
+				this->_pointer = (uint32_t)find(_pattern, _module_name);
+#else
+				this->_pointer = (uint64_t)find(_pattern, _module_name);
+#endif
+			}
 		}
+
 		pattern add(uint32_t _value, bool _deref = false)
 		{
 			if (!_deref)
 			{
 				this->_pointer += _value;
-				return *this;
-			}
-			else {
+		}
+			else
+			{
 				this->_pointer += _value;
 				this->_pointer = *reinterpret_cast<decltype(this->_pointer)*>(this->_pointer);
-				return *this;
 			}
-		}
+			return *this;
+	}
+
 		pattern sub(uint32_t _value)
 		{
 			this->_pointer -= _value;
 			return *this;
 		}
+
 		pattern inst(uint32_t _offset)
 		{
 			this->_pointer = *(int*)(this->_pointer + _offset) + this->_pointer;
@@ -440,31 +479,34 @@ namespace remem
 		}
 
 #ifdef _X86_
-		uint32_t ResolvePtr()
+		uint32_t ResolvePtr() const
 		{
 			return *reinterpret_cast<uint32_t*>(this->_pointer);
 		}
-		uint32_t GetPointer()
+		uint32_t GetPointer() const
 		{
 			return this->_pointer;
 		}
 #else
-		uint64_t ResolvePtr()
+		uint64_t ResolvePtr() const
 		{
 			return *reinterpret_cast<uint64_t*>(this->_pointer);
 		}
-		uint64_t GetPointer()
+		uint64_t GetPointer() const
 		{
 			return this->_pointer;
 		}
 #endif
+
 	private:
 #ifdef _X86_
-		uint32_t _pointer;
+		uint32_t _pointer =	NULL;
 #else
-		uint64_t _pointer;
+		uint64_t _pointer = NULL;
 #endif
-	};
+		bool _cached = false;
+};
+
 #pragma endregion
 };
 
