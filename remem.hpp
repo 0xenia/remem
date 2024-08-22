@@ -15,23 +15,27 @@
 
 #define _LOGS 1
 
+//Credit to dogmatt on unknowncheats.me for IsValidPtr
+//https://www.unknowncheats.me/forum/battlefield-4-a/105265-omg-nub-scrub-crash-fix-codenz-x64.html#post888788
 #if _EXCEPTION_HANDLING
 
 #pragma code_seg(push, ".text")
 
 __declspec(allocate(".text"))
 #ifdef _X86_
-UCHAR __checker[3] = { 0x8B, 0x01, 0xC3 };
+constexpr std::uint8_t __checker[3] = { 0x8B, 0x01, 0xC3 };
 #else
-UCHAR __checker[4] = { 0x48, 0x8B, 0x01, 0xC3 };
+constexpr std::uint8_t __checker[4] = { 0x48, 0x8B, 0x01, 0xC3 };
 #endif
 
 #pragma code_seg()
 
 #ifdef _X86_
 #define BAD ((PVOID)0x1338caf0)
+constexpr int ALIGNMENT = 4;
 #else
 #define BAD ((PVOID)0x1338cafebabef00d)
+constexpr int ALIGNMENT = 8;
 #endif
 
 #ifdef _X86_
@@ -55,34 +59,34 @@ namespace remem
 #pragma region EXCEPTION_HANDLING
 #if _EXCEPTION_HANDLING
 
-	typedef PVOID(*tPointerChecker)(PVOID);
+	using tPointerChecker = void* (*)(void*);
 
-	static const tPointerChecker AvoidBadPtr = (tPointerChecker)&__checker;
+	inline auto AvoidBadPtr = (tPointerChecker)&__checker;
 
 	LONG WINAPI EH(EXCEPTION_POINTERS* ExceptionInfo)
 	{
 #ifdef _X86_
-		if (ExceptionInfo->ContextRecord->Eip != (ULONG_PTR)__checker)
+		if (ExceptionInfo->ContextRecord->Eip != (std::uintptr_t)__checker)
 			return EXCEPTION_CONTINUE_SEARCH;
 #else
-		if (ExceptionInfo->ContextRecord->Rip != (ULONG_PTR)__checker)
+		if (ExceptionInfo->ContextRecord->Rip != (std::uintptr_t)__checker)
 			return EXCEPTION_CONTINUE_SEARCH;
 #endif
 
 #ifdef _X86_
 		ExceptionInfo->ContextRecord->Eip += 2;
-		ExceptionInfo->ContextRecord->Eax = (ULONG_PTR)BAD;
+		ExceptionInfo->ContextRecord->Eax = (std::uintptr_t)BAD;
 #else
 		ExceptionInfo->ContextRecord->Rip += 3;
-		ExceptionInfo->ContextRecord->Rax = (ULONG_PTR)BAD;
+		ExceptionInfo->ContextRecord->Rax = (std::uintptr_t)BAD;
 #endif
 
 		return EXCEPTION_CONTINUE_EXECUTION;
 	}
 
-	inline bool IsValidPtr(PVOID Ptr)
+	inline bool IsValidPtr(void* Ptr)
 	{
-		return (Ptr >= (PVOID)0x10000) && (Ptr < _PTR_MAX_VALUE) && AvoidBadPtr(Ptr) != BAD;
+		return (Ptr >= (void*)0x10000) && (Ptr < _PTR_MAX_VALUE) && !((std::uintptr_t)Ptr & (ALIGNMENT - 1)) && AvoidBadPtr(Ptr) != BAD;
 	}
 
 #else
@@ -457,14 +461,14 @@ namespace remem
 			if (!_deref)
 			{
 				this->_pointer += _value;
-		}
+			}
 			else
 			{
 				this->_pointer += _value;
 				this->_pointer = *reinterpret_cast<decltype(this->_pointer)*>(this->_pointer);
 			}
 			return *this;
-	}
+		}
 
 		pattern sub(uint32_t _value)
 		{
@@ -500,12 +504,12 @@ namespace remem
 
 	private:
 #ifdef _X86_
-		uint32_t _pointer =	NULL;
+		uint32_t _pointer = NULL;
 #else
 		uint64_t _pointer = NULL;
 #endif
 		bool _cached = false;
-};
+	};
 
 #pragma endregion
 };
