@@ -54,11 +54,49 @@ enum class CallingConvention
 	fastcall_
 };
 
+#if _LOGS
+enum class LogLevel : std::uint8_t
+{
+	LOG_ERROR,
+	INFO,
+	WARN,
+	DEBUG
+};
+#endif
+
 namespace remem
 {
+#pragma region LOGGING
+	LogLevel _currentLogLevel = LogLevel::INFO;
+	void Log(LogLevel level, const std::string& message)
+	{
+		if (static_cast<int>(level) >= static_cast<int>(_currentLogLevel))
+		{
+			switch (level)
+			{
+			case LogLevel::DEBUG:
+				std::cout << "[DEBUG] " << message << std::endl;
+				break;
+			case LogLevel::INFO:
+				std::cout << "[INFO] " << message << std::endl;
+				break;
+			case LogLevel::WARN:
+				std::cerr << "[WARN] " << message << std::endl;
+				break;
+			case LogLevel::LOG_ERROR:
+				std::cerr << "[ERROR] " << message << std::endl;
+				break;
+			}
+		}
+	}
+#pragma endregion
 #pragma region EXCEPTION_HANDLING
 #if _EXCEPTION_HANDLING
 
+	void SetupExceptionHandler()
+	{
+		AddVectoredExceptionHandler(1, EH);
+	}
 	using tPointerChecker = void* (*)(void*);
 
 	inline auto AvoidBadPtr = (tPointerChecker)&__checker;
@@ -124,13 +162,6 @@ namespace remem
 	}
 
 #endif
-
-#if _EXCEPTION_HANDLING
-	void SetupExceptionHandler()
-	{
-		AddVectoredExceptionHandler(1, EH);
-	}
-#endif
 #pragma endregion
 #pragma region MODULE_BASE
 	template <typename T>
@@ -159,7 +190,7 @@ namespace remem
 		auto _current = _address;
 #endif
 #if _LOGS
-		std::cout << "Read Memory Address : " << std::hex << _current << std::endl;
+		remem::Log(LogLevel::DEBUG, "Read Memory Address : " + std::to_string(_current));
 #endif
 
 		for (auto iter = _offsets.begin(); iter != _offsets.end(); ++iter)
@@ -169,7 +200,7 @@ namespace remem
 			if (!IsValidPtr(reinterpret_cast<void*>(_current)))
 			{
 #if _LOGS
-				std::cerr << "Error: Null pointer dereferenced at Offset: " << std::hex << _offset << std::endl;
+				remem::Log(LogLevel::LOG_ERROR, "Error: Null pointer dereferenced at Offset: " + std::to_string(_offset));
 #endif
 				return T{};
 			}
@@ -181,7 +212,7 @@ namespace remem
 				{
 					_current = (_current + _offset);
 #if _LOGS
-					std::cout << "Offset: " << std::hex << _offset << " | Offset Read Memory: " << std::hex << _current << std::endl;
+					remem::Log(LogLevel::DEBUG, "Offset: " + std::to_string(_offset) + " | Offset Read Memory: " + std::to_string(_current));
 #endif
 					return std::string(reinterpret_cast<const char*>(_current));
 				}
@@ -189,7 +220,7 @@ namespace remem
 
 			_current = *reinterpret_cast<uintptr_t*>(_current + _offset);
 #if _LOGS
-			std::cout << "Offset: " << std::hex << _offset << " | Offset Read Memory: " << std::hex << _current << std::endl;
+			remem::Log(LogLevel::DEBUG, "Offset: " + std::to_string(_offset) + " | Offset Read Memory: " + std::to_string(_current));
 #endif
 		}
 
@@ -198,7 +229,7 @@ namespace remem
 			if (!IsValidPtr(reinterpret_cast<void*>(_current)))
 			{
 #if _LOGS
-				std::cerr << "Error: Invalid final memory address: " << std::hex << _current << std::endl;
+				remem::Log(LogLevel::LOG_ERROR, "Error: Invalid final memory address: " + std::to_string(_current));
 #endif
 				return T{};
 			}
@@ -233,7 +264,7 @@ namespace remem
 			if (!IsValidPtr(reinterpret_cast<void*>(_current)))
 			{
 #if _LOGS
-				std::cerr << "Error: Null pointer dereferenced at Offset: " << std::hex << _offset << std::endl;
+				remem::Log(LogLevel::LOG_ERROR, "Error: Invalid final memory address: " + std::to_string(_current));
 #endif
 				return;
 			}
@@ -242,7 +273,7 @@ namespace remem
 				if (!IsValidPtr(reinterpret_cast<void*>(_current)))
 				{
 #if _LOGS
-					std::cerr << "Error: Invalid final memory address: " << std::hex << _current << std::endl;
+					remem::Log(LogLevel::LOG_ERROR, "Error: Invalid final memory address: " + std::to_string(_current));
 #endif
 					return;
 				}
@@ -339,7 +370,12 @@ namespace remem
 			{
 				if (mbi.State == MEM_COMMIT && !(mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)))
 				{
-					_cache[_addr] = mbi.RegionSize;
+					uintptr_t region_end = _addr + mbi.RegionSize;
+					if (region_end > _end)
+					{
+						region_end = _end;
+					}
+					_cache[_addr] = region_end - _addr;
 				}
 				_addr += mbi.RegionSize;
 			}
