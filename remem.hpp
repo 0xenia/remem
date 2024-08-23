@@ -93,10 +93,6 @@ namespace remem
 #pragma region EXCEPTION_HANDLING
 #if _EXCEPTION_HANDLING
 
-	void SetupExceptionHandler()
-	{
-		AddVectoredExceptionHandler(1, EH);
-	}
 	using tPointerChecker = void* (*)(void*);
 
 	inline auto AvoidBadPtr = (tPointerChecker)&__checker;
@@ -125,6 +121,11 @@ namespace remem
 	inline bool IsValidPtr(void* Ptr)
 	{
 		return (Ptr >= (void*)0x10000) && (Ptr < _PTR_MAX_VALUE) && !((std::uintptr_t)Ptr & (ALIGNMENT - 1)) && AvoidBadPtr(Ptr) != BAD;
+	}
+
+	void SetupExceptionHandler()
+	{
+		AddVectoredExceptionHandler(1, EH);
 	}
 
 #else
